@@ -21,7 +21,7 @@ SECRET_KEY = 'django-insecure-p@#+6k21!$jb#-+ss2m=6d06qoh-r09a3x_#ukghzcdgk4a8#v
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "quixotic-enrica-cirus-65256e5e.koyeb.app"
+    "quixotic-enrica-cirus-65256e5e.koyeb.app",
     "127.0.0.1",  # For local testing
     "localhost",
 ]
@@ -170,7 +170,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/lagos'
 
 USE_I18N = True
 
