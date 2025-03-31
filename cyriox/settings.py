@@ -23,6 +23,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     "127.0.0.1",  # For local testing
     "localhost",
+    "rival-melinde-cirus-f8c901fe.koyeb.app",
 ]
 
 
