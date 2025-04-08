@@ -9,9 +9,11 @@ urlpatterns = [
     # General Authentication
     path('login/', views.LoginView.as_view(), name="login"),
     path('profile/', views.UserProfileView.as_view(), name="user-profile"),
+    path('distributor/customers/', views.DistributorCustomerListView.as_view(), name='distributor_customers'),
+
 
     # Role-Specific Signup
-    path('admin/signup/', views.AdminSignupView.as_view(), name='admin-signup'),
+    path('api/admin/signup/', views.AdminSignupView.as_view(), name='admin-signup'),
     path('distributor/signup/', views.DistributorSignupView.as_view(), name="distributor-signup"),
     path('user/signup/', views.UserSignupView.as_view(), name="user-signup"),
     path('change-password/', views.ChangePasswordView.as_view(), name="change-password"),

@@ -13,3 +13,5 @@ def send_otp_email(request, email):
         [email],
         fail_silently=False
     )
+
+    

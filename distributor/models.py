@@ -5,18 +5,9 @@ from django.conf import settings
 
 User = get_user_model()
 
-class DistributorCustomer(models.Model):
-    distributor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="customers")
-    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="assigned_distributor")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('distributor', 'customer')
-
-    def __str__(self):
-        return f"{self.customer.username} -> {self.distributor.username}"
-    
-
+from django.db import models
+from django.conf import settings
+from user.models import User  # Import User model from the user app
 
 class Distributor(models.Model):
     """Main distributor account"""
@@ -30,9 +21,16 @@ class Distributor(models.Model):
     def __str__(self):
         return self.name
 
+class DistributorCustomer(models.Model):
+    distributor = models.ForeignKey(Distributor, on_delete=models.CASCADE, related_name="customers")  # Link to Distributor model
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="assigned_distributor")  # Link to User model
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ('distributor', 'customer')
 
-
+    def __str__(self):
+        return f"{self.customer.username} -> {self.distributor.name}"
 
 class Order(models.Model):
     STATUS_CHOICES = [

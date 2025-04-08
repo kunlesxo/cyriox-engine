@@ -24,9 +24,9 @@ schema_view = get_schema_view(
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include("user.urls")),
-    path('transaction', include('transaction.urls')),
-    path('distributor', include('distributor.urls')),
-    path('product', include('products.urls')),
+    path('transaction/', include('transaction.urls')),
+    path('distributor/', include('distributor.urls')),
+    path('product/', include('products.urls')),
     # path('order', include('order.urls')),
     # path('customer', include('customer.urls')),
     # path('message', include('message.urls')),

@@ -42,6 +42,8 @@ class Transaction(models.Model):
     user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="transactions")
     reference = models.CharField(max_length=100, unique=True, editable=False)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    has_made_payment = models.BooleanField(default=False)
     status = models.CharField(max_length=10, choices=TransactionStatus.choices, default=TransactionStatus.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

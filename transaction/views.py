@@ -2,28 +2,30 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
-from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.utils import timezone
 from django.http import JsonResponse
-from django.contrib.auth import get_user_model  
+from django.contrib.auth import get_user_model
+from django.conf import settings
 from .models import Transaction
 from .paystack import initialize_transaction, verify_transaction
 from .serializers import PaystackPaymentSerializer, TransactionSerializer
-import logging
 from user.models import User
 import requests
-from django.conf import settings
+import logging
+import hmac
+import hashlib
 
-
-# Initialize logger
 logger = logging.getLogger(__name__)
-
-# Get custom user model
 User = get_user_model()
+
 from rest_framework.permissions import IsAuthenticated
+
 
 class PaystackPaymentInitView(APIView):
     """Initialize Paystack Payment"""
-    permission_classes = [IsAuthenticated]  # Enforce authentication
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = PaystackPaymentSerializer(data=request.data)
@@ -32,12 +34,10 @@ class PaystackPaymentInitView(APIView):
 
         email = serializer.validated_data["email"]
         amount = serializer.validated_data["amount"]
-        user = request.user  # Get the authenticated user
+        user = request.user
 
-        # Call Paystack API to initialize transaction
         try:
             response = initialize_transaction(email, amount)
-
             if response.get("status"):
                 transaction = Transaction.objects.create(
                     user=user,
@@ -48,7 +48,7 @@ class PaystackPaymentInitView(APIView):
 
                 return Response({
                     "message": "Transaction initialized",
-                    "authorization_url": response["data"]["authorization_url"],  # Send this to frontend
+                    "authorization_url": response["data"]["authorization_url"],
                     "transaction": TransactionSerializer(transaction).data
                 }, status=status.HTTP_200_OK)
 
@@ -62,51 +62,67 @@ class PaystackPaymentInitView(APIView):
             return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@csrf_exempt
 @api_view(["POST"])
 def paystack_webhook(request):
-    """Handle Paystack Webhook Events"""
+    """Securely handle Paystack Webhook Events"""
     try:
+        # Verify webhook signature
+        signature = request.headers.get("X-Paystack-Signature")
+        secret = settings.PAYSTACK_SECRET_KEY.encode()
+        computed_hash = hmac.new(secret, request.body, hashlib.sha512).hexdigest()
+
+        if signature != computed_hash:
+            logger.warning("Invalid Paystack webhook signature.")
+            return Response({"error": "Invalid signature"}, status=status.HTTP_403_FORBIDDEN)
+
         data = request.data
         event = data.get("event")
+        reference = data["data"].get("reference")
+
+        transaction = Transaction.objects.filter(reference=reference).first()
+
+        if not transaction:
+            logger.warning(f"Webhook received for unknown reference: {reference}")
+            return Response({"status": "ignored"}, status=status.HTTP_200_OK)
 
         if event == "charge.success":
-            reference = data["data"]["reference"]
-            transaction = Transaction.objects.filter(reference=reference).first()
+            transaction.status = "success"
+            transaction.paid_at = timezone.now()
+            transaction.save()
 
-            if transaction:
-                transaction.status = "success"
-                transaction.save()
+            user = transaction.user
+            user.has_made_payment = True
+            user.save()
 
-                # Update user data (if needed)
-                user = transaction.user
-                user.has_made_payment = True  # Example field on the user model
-                user.save()
+            logger.info(f"Transaction {reference} marked as successful via webhook.")
 
-                logger.info(f"Transaction {reference} marked as successful via webhook")
-
-            else:
-                logger.warning(f"Webhook received for unknown transaction reference: {reference}")
+        elif event == "charge.failed":
+            transaction.status = "failed"
+            transaction.save()
+            logger.info(f"Transaction {reference} marked as failed.")
 
         return Response({"status": "success"}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        logger.error(f"Error handling Paystack webhook: {str(e)}")
+        logger.error(f"Webhook error: {str(e)}")
         return Response({"error": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class TransactionStatusView(APIView):
-    """Retrieve transaction status by reference"""
+    """Get Transaction Status by Reference"""
 
     def get(self, request, reference):
         transaction = Transaction.objects.filter(reference=reference).first()
-
         if not transaction:
             return Response({"error": "Transaction not found"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = TransactionSerializer(transaction)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
 class VerifyPaystackPaymentView(APIView):
-    """Verify Paystack Payment"""
+    """Verify Paystack Transaction via Reference"""
 
     def get(self, request, reference):
         url = f"https://api.paystack.co/transaction/verify/{reference}"
@@ -114,20 +130,19 @@ class VerifyPaystackPaymentView(APIView):
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
             "Content-Type": "application/json",
         }
-        
+
         response = requests.get(url, headers=headers)
         data = response.json()
 
         if data.get("status") and data["data"]["status"] == "success":
-            # Update transaction status
             transaction = Transaction.objects.filter(reference=reference).first()
             if transaction:
                 transaction.status = "success"
+                transaction.paid_at = timezone.now()
                 transaction.save()
 
-                # Update user data
                 user = transaction.user
-                user.has_made_payment = True  # Example field on the user model
+                user.has_made_payment = True
                 user.save()
 
             return Response({

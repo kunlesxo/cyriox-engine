@@ -42,19 +42,20 @@ class GetDistributorCustomersAPIView(generics.ListAPIView):
 
     def get_queryset(self):
         # Ensure only distributors can access their assigned customers
-        if self.request.user.role == "distributor":
-            return DistributorCustomer.objects.filter(distributor=self.request.user)
-        return DistributorCustomer.objects.none()
+        if self.request.user.role == "Distributor":  # Adjust role comparison to match exactly
+            distributor = getattr(self.request.user, 'distributor_profile', None)  # Access distributor profile
+            if distributor:
+                return DistributorCustomer.objects.filter(distributor=distributor)
+        return DistributorCustomer.objects.none()  # Return empty queryset if no distributor found
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
+
         if not queryset.exists():
             return Response({"message": "No customers assigned"}, status=status.HTTP_200_OK)
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
 
 class GetDistributorOrdersAPIView(generics.ListAPIView):
     serializer_class = OrderSerializer
